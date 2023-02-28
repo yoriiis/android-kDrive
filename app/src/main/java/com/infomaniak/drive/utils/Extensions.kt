@@ -33,6 +33,7 @@ import android.provider.MediaStore
 import android.util.DisplayMetrics
 import android.util.Patterns
 import android.view.View
+import android.view.WindowMetrics
 import android.view.animation.Animation
 import android.view.animation.RotateAnimation
 import android.view.inputmethod.EditorInfo
@@ -46,6 +47,7 @@ import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.navigation.fragment.findNavController
+import androidx.window.layout.WindowMetricsCalculator
 import coil.load
 import coil.request.Disposable
 import com.google.android.material.card.MaterialCardView
@@ -82,6 +84,7 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+
 
 typealias FileId = Int
 typealias IOFile = java.io.File
@@ -169,22 +172,12 @@ fun ImageView.animateRotation(isDeployed: Boolean = false) {
  * Return the screen size in DPs
  */
 fun Activity.getScreenSizeInDp(): Point {
-    val displayMetrics = DisplayMetrics()
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        display?.apply {
-            getRealMetrics(displayMetrics)
-        }
-    } else {
-        windowManager.defaultDisplay.getMetrics(displayMetrics)
-    }
+    val windowMetrics = WindowMetricsCalculator.getOrCreate().computeCurrentWindowMetrics(this)
 
-    val point = Point()
-    displayMetrics.apply {
-        point.x = (widthPixels / density).roundToInt()
-        point.y = (heightPixels / density).roundToInt()
+    return Point().apply {
+        y = windowMetrics.bounds.height()
+        x = windowMetrics.bounds.width()
     }
-
-    return point
 }
 
 /**
