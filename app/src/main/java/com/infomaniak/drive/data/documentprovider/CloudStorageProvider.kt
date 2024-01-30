@@ -47,6 +47,7 @@ import com.infomaniak.drive.data.services.DownloadWorker
 import com.infomaniak.drive.utils.AccountUtils
 import com.infomaniak.drive.utils.NotificationUtils.buildGeneralNotification
 import com.infomaniak.drive.utils.NotificationUtils.cancelNotification
+import com.infomaniak.drive.utils.NotificationUtils.notifyCompat
 import com.infomaniak.drive.utils.SyncUtils.syncImmediately
 import com.infomaniak.drive.utils.Utils
 import com.infomaniak.drive.utils.isPositive
@@ -629,7 +630,7 @@ class CloudStorageProvider : DocumentsProvider() {
                             NotificationUtilsCore.pendingIntentFlags
                         )
                     )
-                    NotificationManagerCompat.from(context).notify(syncPermissionNotifId, build())
+                    NotificationManagerCompat.from(context).notifyCompat(context, syncPermissionNotifId, build())
                 }
             }
         }
