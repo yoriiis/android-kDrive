@@ -66,11 +66,13 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.IOException
 import java.net.URLEncoder
-import java.util.*
+import java.util.Date
+import java.util.UUID
 
 class CloudStorageProvider : DocumentsProvider() {
 
     private lateinit var cacheDir: java.io.File
+    private val cloudScope = CoroutineScope(Dispatchers.IO)
 
     override fun onCreate(): Boolean {
         SentryLog.d(TAG, "onCreate")
@@ -92,7 +94,7 @@ class CloudStorageProvider : DocumentsProvider() {
 
         AccountUtils.getAllUsersSync().forEach { user ->
             cursor.addRoot(user.id.toString(), user.id.toString(), user.email)
-            CoroutineScope(Dispatchers.IO).launch {
+            cloudScope.launch {
                 context?.let {
                     val okHttpClient = AccountUtils.getHttpClient(user.id)
                     AccountUtils.updateCurrentUserAndDrives(it, fromCloudStorage = true, okHttpClient = okHttpClient)
@@ -177,7 +179,6 @@ class CloudStorageProvider : DocumentsProvider() {
         val sortType = getSortType(sortOrder)
 
         val userDrive = UserDrive(userId, driveId)
-        val realm = FileController.getRealmInstance(userDrive)
 
         when {
             isRootFolder -> {
@@ -196,37 +197,40 @@ class CloudStorageProvider : DocumentsProvider() {
             isSharedWithMeFolder -> cursor.addRootDrives(userId, SHARED_WITHME_FOLDER_ID, true)
             isMySharesFolder -> cursor.addRootDrives(userId, MY_SHARES_FOLDER_ID)
             isSharedUri(parentDocumentId) && fileFolderId == Utils.ROOT_ID -> {
-                CoroutineScope(Dispatchers.IO + cursor.job).launch {
+                cloudScope.launch(cursor.job) {
                     if (parentDocumentId.contains(MY_SHARES_FOLDER_ID.toString())) {
                         FileController.getMySharedFiles(
                             userDrive = UserDrive(userId, driveId),
                             sortType = sortType,
                             transaction = { files, _ -> cursor.addFiles(parentDocumentId, uri)(files) })
                     } else {
+                        FileController.getRealmInstance(userDrive).use { realm ->
+                            FolderFilesProvider.getCloudStorageFiles(
+                                realm = realm,
+                                folderId = fileFolderId,
+                                userDrive = UserDrive(userId, driveId, sharedWithMe = true),
+                                sortType = sortType,
+                                transaction = cursor.addFiles(parentDocumentId, uri)
+                            )
+                        }
+                    }
+                }
+            }
+            else -> {
+                cloudScope.launch(cursor.job) {
+                    FileController.getRealmInstance(userDrive).use { realm ->
                         FolderFilesProvider.getCloudStorageFiles(
                             realm = realm,
                             folderId = fileFolderId,
-                            userDrive = UserDrive(userId, driveId, sharedWithMe = true),
+                            userDrive = userDrive,
                             sortType = sortType,
                             transaction = cursor.addFiles(parentDocumentId, uri)
                         )
                     }
                 }
             }
-            else -> {
-                CoroutineScope(Dispatchers.IO + cursor.job).launch {
-                    FolderFilesProvider.getCloudStorageFiles(
-                        realm = realm,
-                        folderId = fileFolderId,
-                        userDrive = userDrive,
-                        sortType = sortType,
-                        transaction = cursor.addFiles(parentDocumentId, uri)
-                    )
-                }
-            }
         }
 
-        realm.close()
         cursor.extras = bundleOf(DocumentsContract.EXTRA_LOADING to false)
         cursor.setNotificationUri(context?.contentResolver, uri)
         return cursor
@@ -293,7 +297,7 @@ class CloudStorageProvider : DocumentsProvider() {
         val userId = getUserId(parentDocumentId)
         val userDrive = UserDrive(userId.toInt(), driveId, comeFromSharedWithMe(parentDocumentId))
 
-        CoroutineScope(Dispatchers.IO + cursor.job).launch {
+        cloudScope.launch(cursor.job) {
             FileController.cloudStorageSearch(userDrive, query, onResponse = { files ->
                 files.forEach { file -> cursor.addFile(file, createFileDocumentId(parentDocumentId, file.id)) }
                 if (files.isNotEmpty()) context?.contentResolver?.notifyChange(uri, null)
@@ -535,7 +539,7 @@ class CloudStorageProvider : DocumentsProvider() {
 
         return ParcelFileDescriptor.open(tempFile, accessMode, handler) { exception: IOException? ->
             if (exception == null) {
-                CoroutineScope(Dispatchers.IO).launch {
+                cloudScope.launch {
                     UploadFile(
                         uri = tempFile.toUri().toString(),
                         driveId = userDrive.driveId,
