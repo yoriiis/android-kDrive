@@ -52,7 +52,7 @@ object ApiRoutes {
 
     /** V1 */
     //region V1
-    fun getAllDrivesData() = "${DRIVE_API_V1}init?with=drives,users,teams,ips,categories"
+    fun getAllDrivesData() = "${DRIVE_API_V2}init?with=drives,users,teams,ips,categories,drives.account"
     //endregion
 
     /** Archive */

@@ -55,6 +55,8 @@ open class Drive(
      */
     @SerializedName("account_id")
     var accountId: Int = -1,
+    @SerializedName("account")
+    private var _account: Account? = Account(),
     @SerializedName("created_at")
     var createdAt: Long = 0,
     @SerializedName("updated_at")
@@ -91,6 +93,9 @@ open class Drive(
 
     val teams: DriveTeamsCategories
         get() = _teams ?: DriveTeamsCategories()
+
+    val account: Account
+        get() = _account ?: Account()
 
     inline val isFreePack get() = pack == DrivePack.FREE.value
 
